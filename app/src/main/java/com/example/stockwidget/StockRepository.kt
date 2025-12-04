@@ -20,52 +20,66 @@ object StockRepository {
     suspend fun getStockList(codes: String): List<StockModel> {
         return withContext(Dispatchers.IO) {
             val list = mutableListOf<StockModel>()
+            
+            // 1. 智能预处理：不管用户输什么，提取数字并自动匹配 sh/sz
+            val rawList = codes.split(",")
+            val smartCodes = rawList.mapNotNull { raw ->
+                val number = raw.filter { it.isDigit() }
+                if (number.length == 6) {
+                    // 6开头是上海(sh)，0/3开头是深圳(sz)，4/8是北交所(bj)
+                    val prefix = when {
+                        number.startsWith("6") -> "sh"
+                        number.startsWith("0") || number.startsWith("3") -> "sz"
+                        number.startsWith("4") || number.startsWith("8") -> "bj"
+                        else -> "sh" // 默认
+                    }
+                    prefix + number
+                } else {
+                    null // 忽略格式不对的
+                }
+            }.joinToString(",")
+
+            if (smartCodes.isEmpty()) return@withContext emptyList()
+
             try {
-                // 1. 发起请求
+                // 2. 发起请求
                 val request = Request.Builder()
-                    .url("https://hq.sinajs.cn/list=$codes")
+                    .url("https://hq.sinajs.cn/list=$smartCodes")
                     .header("Referer", "https://finance.sina.com.cn")
                     .build()
 
                 val response = client.newCall(request).execute()
                 val bytes = response.body?.bytes() ?: return@withContext emptyList()
                 val text = String(bytes, Charset.forName("GBK"))
-
+                
                 val lines = text.split(";")
-                val requestedCodes = codes.split(",")
 
-                // 2. 逐个解析 (增加容错，输错一个不影响其他)
-                requestedCodes.forEach { rawCode ->
-                    val code = rawCode.trim()
-                    if (code.isNotEmpty()) {
-                        // 模糊匹配，防止用户搞错 sh/sz 大小写
-                        val line = lines.find { it.contains("hq_str_$code", ignoreCase = true) }
-                        
-                        if (line != null && line.contains("\"")) {
-                            val content = line.substringAfter("\"").substringBeforeLast("\"")
-                            if (content.isNotBlank() && content.length > 10) { // 确保数据有效
-                                try {
-                                    val parts = content.split(",")
-                                    val name = parts[0]
-                                    val currentPrice = parts[3].toDouble()
-                                    val prevClose = parts[2].toDouble()
+                // 3. 解析数据
+                smartCodes.split(",").forEach { code ->
+                    val line = lines.find { it.contains("hq_str_$code", ignoreCase = true) }
+                    if (line != null && line.contains("\"")) {
+                        val content = line.substringAfter("\"").substringBeforeLast("\"")
+                        if (content.length > 10) {
+                            try {
+                                val parts = content.split(",")
+                                val name = parts[0]
+                                val currentPrice = parts[3].toDouble()
+                                val prevClose = parts[2].toDouble()
 
-                                    // 只有价格有效才添加
-                                    if (currentPrice > 0 && prevClose > 0) {
-                                        val changePercent = (currentPrice - prevClose) / prevClose * 100
-                                        val isUp = changePercent >= 0
-                                        
-                                        list.add(StockModel(
-                                            code = code,
-                                            name = name,
-                                            price = String.format("%.2f", currentPrice),
-                                            percent = (if (isUp) "+" else "") + String.format("%.2f%%", changePercent),
-                                            isUp = isUp
-                                        ))
-                                    }
-                                } catch (e: Exception) {
-                                    // 单个解析失败，忽略，继续下一个
+                                if (currentPrice > 0.0) {
+                                    val changePercent = (currentPrice - prevClose) / prevClose * 100
+                                    val isUp = changePercent >= 0
+                                    
+                                    list.add(StockModel(
+                                        code = code, // 显示修正后的代码
+                                        name = name,
+                                        price = String.format("%.2f", currentPrice),
+                                        percent = (if (isUp) "+" else "") + String.format("%.2f%%", changePercent),
+                                        isUp = isUp
+                                    ))
                                 }
+                            } catch (e: Exception) {
+                                // 忽略解析错误的个股
                             }
                         }
                     }
