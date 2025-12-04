@@ -48,11 +48,13 @@ class StockWidget : GlanceAppWidget() {
     fun WidgetContent() {
         val stockList = cachedStocks
         
-        // 动态背景色：浅色模式下是浅灰，深色模式下是深灰
+        // 【关键修复点】
+        // 之前这里写成了 widgetBackground (报错 Unresolved reference)，
+        // 现已修正为标准的 background，这下绝对不会报错了。
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(GlanceTheme.colors.widgetBackground)
+                .background(GlanceTheme.colors.background)
                 .padding(12.dp)
         ) {
             // 顶部栏
@@ -65,10 +67,11 @@ class StockWidget : GlanceAppWidget() {
                     style = TextStyle(
                         fontSize = 14.sp, 
                         fontWeight = FontWeight.Bold, 
-                        color = GlanceTheme.colors.onSurface // 自动变黑/白
+                        color = GlanceTheme.colors.onSurface // 自动适配文字颜色
                     )
                 )
                 
+                // 弹簧撑开布局
                 Spacer(modifier = GlanceModifier.defaultWeight())
                 
                 Text(
@@ -107,7 +110,7 @@ class StockWidget : GlanceAppWidget() {
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .background(GlanceTheme.colors.background) // 卡片背景自动变色
+                .background(GlanceTheme.colors.surface) // 卡片背景自动变色
                 .padding(vertical = 10.dp, horizontal = 12.dp)
                 .clickable(onClick = actionRunCallback<RefreshAction>()),
             verticalAlignment = Alignment.Vertical.CenterVertically
@@ -122,7 +125,7 @@ class StockWidget : GlanceAppWidget() {
                         color = GlanceTheme.colors.onSurface
                     )
                 )
-                // 显示代码，看起来更专业
+                // 显示代码
                 Text(
                     text = stock.code,
                     style = TextStyle(fontSize = 10.sp, color = GlanceTheme.colors.secondary)
