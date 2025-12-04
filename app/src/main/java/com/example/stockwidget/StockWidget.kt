@@ -22,7 +22,7 @@ import androidx.glance.unit.ColorProvider
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
-import androidx.glance.appwidget.action.actionRunCallback  // 【关键修复】之前少了这一行
+import androidx.glance.appwidget.action.actionRunCallback
 
 class StockWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = StockWidget()
@@ -53,16 +53,21 @@ class StockWidget : GlanceAppWidget() {
                 .background(Color(0xFFF2F3F5))
                 .padding(12.dp)
         ) {
-            // 【关键修复】这里使用了 Arrangement.SpaceBetween 而不是之前的错误写法
+            // 【核心修复点】
+            // 之前的错误是因为用了 horizontalArrangement（小部件不支持）。
+            // 现在改为：用 Spacer(Modifier.defaultWeight()) 来自动撑开左右两边的文字。
             Row(
                 modifier = GlanceModifier.fillMaxWidth().padding(bottom = 8.dp),
-                verticalAlignment = Alignment.Vertical.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween 
+                verticalAlignment = Alignment.Vertical.CenterVertically
             ) {
                 Text(
                     "自选行情",
                     style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ColorProvider(Color.Black))
                 )
+                
+                // 这是一个“弹簧”，会自动把右边的内容顶到最右边
+                Spacer(modifier = GlanceModifier.defaultWeight())
+                
                 Text(
                     text = "↻ $lastUpdate",
                     style = TextStyle(fontSize = 10.sp, color = ColorProvider(Color.Gray)),
