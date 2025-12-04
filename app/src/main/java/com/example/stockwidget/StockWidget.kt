@@ -37,6 +37,7 @@ class StockWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
+            // 使用 GlanceTheme 自动适配深色模式
             GlanceTheme {
                 WidgetContent()
             }
@@ -47,30 +48,32 @@ class StockWidget : GlanceAppWidget() {
     fun WidgetContent() {
         val stockList = cachedStocks
         
+        // 动态背景色：浅色模式下是浅灰，深色模式下是深灰
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(Color(0xFFF2F3F5))
+                .background(GlanceTheme.colors.widgetBackground)
                 .padding(12.dp)
         ) {
-            // 【核心修复点】
-            // 之前的错误是因为用了 horizontalArrangement（小部件不支持）。
-            // 现在改为：用 Spacer(Modifier.defaultWeight()) 来自动撑开左右两边的文字。
+            // 顶部栏
             Row(
                 modifier = GlanceModifier.fillMaxWidth().padding(bottom = 8.dp),
                 verticalAlignment = Alignment.Vertical.CenterVertically
             ) {
                 Text(
                     "自选行情",
-                    style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ColorProvider(Color.Black))
+                    style = TextStyle(
+                        fontSize = 14.sp, 
+                        fontWeight = FontWeight.Bold, 
+                        color = GlanceTheme.colors.onSurface // 自动变黑/白
+                    )
                 )
                 
-                // 这是一个“弹簧”，会自动把右边的内容顶到最右边
                 Spacer(modifier = GlanceModifier.defaultWeight())
                 
                 Text(
                     text = "↻ $lastUpdate",
-                    style = TextStyle(fontSize = 10.sp, color = ColorProvider(Color.Gray)),
+                    style = TextStyle(fontSize = 11.sp, color = GlanceTheme.colors.secondary),
                     modifier = GlanceModifier.clickable(onClick = actionRunCallback<RefreshAction>())
                 )
             }
@@ -78,8 +81,8 @@ class StockWidget : GlanceAppWidget() {
             if (stockList.isEmpty()) {
                 Box(modifier = GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "点击空白处刷新", 
-                        style = TextStyle(color = ColorProvider(Color.Gray)),
+                        "点击刷新或去APP设置", 
+                        style = TextStyle(color = GlanceTheme.colors.onSurface),
                         modifier = GlanceModifier.clickable(onClick = actionRunCallback<RefreshAction>())
                     )
                 }
@@ -87,7 +90,7 @@ class StockWidget : GlanceAppWidget() {
                 LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                     items(stockList) { stock ->
                         StockItemRow(stock)
-                        Spacer(modifier = GlanceModifier.height(8.dp))
+                        Spacer(modifier = GlanceModifier.height(6.dp))
                     }
                 }
             }
@@ -96,38 +99,61 @@ class StockWidget : GlanceAppWidget() {
 
     @Composable
     fun StockItemRow(stock: StockModel) {
-        val upColor = Color(0xFFF53F3F)
-        val downColor = Color(0xFF00B42A)
+        val upColor = Color(0xFFF53F3F) // 红
+        val downColor = Color(0xFF00B42A) // 绿
         val displayColor = if (stock.isUp) upColor else downColor
 
+        // 卡片行
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .background(Color.White)
-                .padding(10.dp)
+                .background(GlanceTheme.colors.background) // 卡片背景自动变色
+                .padding(vertical = 10.dp, horizontal = 12.dp)
                 .clickable(onClick = actionRunCallback<RefreshAction>()),
             verticalAlignment = Alignment.Vertical.CenterVertically
         ) {
+            // 股票名称
             Column(modifier = GlanceModifier.defaultWeight()) {
                 Text(
                     text = stock.name,
-                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, color = ColorProvider(Color.Black))
+                    style = TextStyle(
+                        fontSize = 13.sp, 
+                        fontWeight = FontWeight.Medium, 
+                        color = GlanceTheme.colors.onSurface
+                    )
+                )
+                // 显示代码，看起来更专业
+                Text(
+                    text = stock.code,
+                    style = TextStyle(fontSize = 10.sp, color = GlanceTheme.colors.secondary)
                 )
             }
+            
+            // 价格
             Text(
                 text = stock.price,
-                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ColorProvider(displayColor)),
+                style = TextStyle(
+                    fontSize = 15.sp, 
+                    fontWeight = FontWeight.Bold, 
+                    color = ColorProvider(displayColor)
+                ),
                 modifier = GlanceModifier.padding(end = 12.dp)
             )
+            
+            // 涨跌幅块
             Box(
                 modifier = GlanceModifier
                     .background(displayColor.copy(alpha = 0.1f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                    .padding(horizontal = 6.dp, vertical = 3.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = stock.percent,
-                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ColorProvider(displayColor))
+                    style = TextStyle(
+                        fontSize = 12.sp, 
+                        fontWeight = FontWeight.Bold, 
+                        color = ColorProvider(displayColor)
+                    )
                 )
             }
         }
