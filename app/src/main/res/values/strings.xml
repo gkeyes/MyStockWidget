@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">A股行情</string>
+    <string name="widget_desc">显示中国股票实时行情</string>
+</resources>
