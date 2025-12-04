@@ -15,21 +15,19 @@ import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
 import androidx.glance.background
-import androidx.glance.layout.*
-import androidx.glance.text.FontWeight
+import androidx.glance.layout.* import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.action.actionRunCallback  // 【关键修复】之前少了这一行
 
-// 1. Widget Receiver (必须在这里或者单独文件定义)
 class StockWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = StockWidget()
 }
 
-// 2. Widget UI Logic
 class StockWidget : GlanceAppWidget() {
 
     companion object {
@@ -52,13 +50,14 @@ class StockWidget : GlanceAppWidget() {
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(Color(0xFFF2F3F5)) // 澎湃OS 浅灰底
+                .background(Color(0xFFF2F3F5))
                 .padding(12.dp)
         ) {
+            // 【关键修复】这里使用了 Arrangement.SpaceBetween 而不是之前的错误写法
             Row(
                 modifier = GlanceModifier.fillMaxWidth().padding(bottom = 8.dp),
                 verticalAlignment = Alignment.Vertical.CenterVertically,
-                horizontalAlignment = Alignment.Horizontal.Between
+                horizontalArrangement = Arrangement.SpaceBetween 
             ) {
                 Text(
                     "自选行情",
