@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:description="A股行情"
-    android:resizeMode="horizontal|vertical"
+    android:description="@string/widget_desc"
+    android:initialLayout="@layout/glance_default_loading_layout"
     android:minWidth="180dp"
     android:minHeight="180dp"
+    android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="1800000"
-    android:widgetCategory="home_screen"
-    android:initialLayout="@layout/glance_default_loading_layout" />
+    android:widgetCategory="home_screen" />
