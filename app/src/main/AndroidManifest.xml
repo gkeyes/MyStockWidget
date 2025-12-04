@@ -5,7 +5,7 @@
 
     <application
         android:allowBackup="true"
-android:icon="@android:drawable/sym_def_app_icon"
+        android:icon="@android:drawable/sym_def_app_icon"
         android:label="A股行情"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
