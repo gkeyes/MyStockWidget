@@ -1,178 +1,108 @@
 package com.example.stockwidget
 
-import android.content.Context
-import androidx.compose.runtime.Composable
+import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.glance.GlanceId
-import androidx.glance.GlanceModifier
-import androidx.glance.GlanceTheme
-import androidx.glance.action.ActionParameters
-import androidx.glance.action.clickable
-import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.action.ActionCallback
-import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
-import androidx.glance.background
-import androidx.glance.layout.* import androidx.glance.text.FontWeight
-import androidx.glance.text.Text
-import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
-import androidx.glance.appwidget.lazy.LazyColumn
-import androidx.glance.appwidget.lazy.items
-import androidx.glance.appwidget.GlanceAppWidgetReceiver
-import androidx.glance.appwidget.action.actionRunCallback
+import kotlinx.coroutines.launch
 
-class StockWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = StockWidget()
-}
-
-class StockWidget : GlanceAppWidget() {
-
-    companion object {
-        var cachedStocks: List<StockModel> = emptyList()
-        var lastUpdate: String = "点击刷新"
-    }
-
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent {
-            // 使用 GlanceTheme 自动适配深色模式
-            GlanceTheme {
-                WidgetContent()
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MaterialTheme {
+                StockConfigScreen()
             }
         }
     }
 
     @Composable
-    fun WidgetContent() {
-        val stockList = cachedStocks
-        
-        // 【关键修复点】
-        // 之前这里写成了 widgetBackground (报错 Unresolved reference)，
-        // 现已修正为标准的 background，这下绝对不会报错了。
-        Column(
-            modifier = GlanceModifier
-                .fillMaxSize()
-                .background(GlanceTheme.colors.background)
-                .padding(12.dp)
-        ) {
-            // 顶部栏
-            Row(
-                modifier = GlanceModifier.fillMaxWidth().padding(bottom = 8.dp),
-                verticalAlignment = Alignment.Vertical.CenterVertically
-            ) {
-                Text(
-                    "自选行情",
-                    style = TextStyle(
-                        fontSize = 14.sp, 
-                        fontWeight = FontWeight.Bold, 
-                        color = GlanceTheme.colors.onSurface // 自动适配文字颜色
-                    )
-                )
-                
-                // 弹簧撑开布局
-                Spacer(modifier = GlanceModifier.defaultWeight())
-                
-                Text(
-                    text = "↻ $lastUpdate",
-                    style = TextStyle(fontSize = 11.sp, color = GlanceTheme.colors.secondary),
-                    modifier = GlanceModifier.clickable(onClick = actionRunCallback<RefreshAction>())
-                )
-            }
+    fun StockConfigScreen() {
+        var textValue by remember { mutableStateOf(Prefs.getSavedCodes(this)) }
+        var isLoading by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
 
-            if (stockList.isEmpty()) {
-                Box(modifier = GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "点击刷新或去APP设置", 
-                        style = TextStyle(color = GlanceTheme.colors.onSurface),
-                        modifier = GlanceModifier.clickable(onClick = actionRunCallback<RefreshAction>())
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFF2F3F5))
+                .padding(16.dp)
+        ) {
+            Text(
+                "股票小部件设置",
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                color = Color.Black,
+                modifier = Modifier.padding(vertical = 24.dp, horizontal = 8.dp)
+            )
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Text("输入股票代码", fontWeight = FontWeight.Bold, color = Color.Black)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("支持智能识别：直接输入数字即可，如 600519, 000858", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = textValue,
+                        onValueChange = { textValue = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        placeholder = { Text("例如: 600519, 002594") },
+                        minLines = 3
                     )
-                }
-            } else {
-                LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                    items(stockList) { stock ->
-                        StockItemRow(stock)
-                        Spacer(modifier = GlanceModifier.height(6.dp))
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            if (isLoading) return@Button
+                            isLoading = true
+                            Prefs.saveCodes(this@MainActivity, textValue)
+                            
+                            scope.launch {
+                                // 1. 先去下载最新数据
+                                val newData = StockRepository.getStockList(textValue)
+                                // 2. 更新内存缓存
+                                StockWidget.cachedStocks = newData
+                                val timeFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                                StockWidget.lastUpdate = timeFormat.format(java.util.Date())
+                                
+                                // 3. 刷新桌面组件
+                                StockWidget().updateAll(this@MainActivity)
+                                
+                                isLoading = false
+                                Toast.makeText(this@MainActivity, "保存成功！数据已更新", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3575F0)),
+                        shape = RoundedCornerShape(25.dp)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        } else {
+                            Text("保存并立刻刷新", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
         }
-    }
-
-    @Composable
-    fun StockItemRow(stock: StockModel) {
-        val upColor = Color(0xFFF53F3F) // 红
-        val downColor = Color(0xFF00B42A) // 绿
-        val displayColor = if (stock.isUp) upColor else downColor
-
-        // 卡片行
-        Row(
-            modifier = GlanceModifier
-                .fillMaxWidth()
-                .background(GlanceTheme.colors.surface) // 卡片背景自动变色
-                .padding(vertical = 10.dp, horizontal = 12.dp)
-                .clickable(onClick = actionRunCallback<RefreshAction>()),
-            verticalAlignment = Alignment.Vertical.CenterVertically
-        ) {
-            // 股票名称
-            Column(modifier = GlanceModifier.defaultWeight()) {
-                Text(
-                    text = stock.name,
-                    style = TextStyle(
-                        fontSize = 13.sp, 
-                        fontWeight = FontWeight.Medium, 
-                        color = GlanceTheme.colors.onSurface
-                    )
-                )
-                // 显示代码
-                Text(
-                    text = stock.code,
-                    style = TextStyle(fontSize = 10.sp, color = GlanceTheme.colors.secondary)
-                )
-            }
-            
-            // 价格
-            Text(
-                text = stock.price,
-                style = TextStyle(
-                    fontSize = 15.sp, 
-                    fontWeight = FontWeight.Bold, 
-                    color = ColorProvider(displayColor)
-                ),
-                modifier = GlanceModifier.padding(end = 12.dp)
-            )
-            
-            // 涨跌幅块
-            Box(
-                modifier = GlanceModifier
-                    .background(displayColor.copy(alpha = 0.1f))
-                    .padding(horizontal = 6.dp, vertical = 3.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stock.percent,
-                    style = TextStyle(
-                        fontSize = 12.sp, 
-                        fontWeight = FontWeight.Bold, 
-                        color = ColorProvider(displayColor)
-                    )
-                )
-            }
-        }
-    }
-}
-
-class RefreshAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val codes = Prefs.getSavedCodes(context)
-        val data = StockRepository.getStockList(codes)
-        
-        if (data.isNotEmpty()) {
-            StockWidget.cachedStocks = data
-            val timeFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-            StockWidget.lastUpdate = timeFormat.format(java.util.Date())
-        }
-        StockWidget().updateAll(context)
     }
 }
