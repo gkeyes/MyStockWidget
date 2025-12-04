@@ -31,88 +31,78 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun StockConfigScreen() {
         var textValue by remember { mutableStateOf(Prefs.getSavedCodes(this)) }
+        var isLoading by remember { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
 
-        // 澎湃OS风格背景色
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFFF2F3F5)) // 浅灰背景
+                .background(Color(0xFFF2F3F5))
                 .padding(16.dp)
         ) {
-            // 标题栏
             Text(
                 "股票小部件设置",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                ),
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                color = Color.Black,
                 modifier = Modifier.padding(vertical = 24.dp, horizontal = 8.dp)
             )
 
-            // 白色卡片容器
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
-                    Text(
-                        "输入股票代码",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color.Black
-                    )
+                    Text("输入股票代码", fontWeight = FontWeight.Bold, color = Color.Black)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "规则：sh代表上海，sz代表深圳，用英文逗号隔开。\n例如：sh000001,sh600519,sz002594",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
-                    )
+                    Text("支持智能识别：直接输入数字即可，如 600519, 000858", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 输入框
                     OutlinedTextField(
                         value = textValue,
                         onValueChange = { textValue = it },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        placeholder = { Text("例如: sh000001,sz000858") },
+                        placeholder = { Text("例如: 600519, 002594") },
                         minLines = 3
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // 大圆角蓝色按钮
                     Button(
                         onClick = {
+                            if (isLoading) return@Button
+                            isLoading = true
                             Prefs.saveCodes(this@MainActivity, textValue)
+                            
                             scope.launch {
-                                // 强制刷新
+                                // 1. 先去下载最新数据
+                                val newData = StockRepository.getStockList(textValue)
+                                // 2. 更新内存缓存
+                                StockWidget.cachedStocks = newData
+                                val timeFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                                StockWidget.lastUpdate = timeFormat.format(java.util.Date())
+                                
+                                // 3. 刷新桌面组件
                                 StockWidget().updateAll(this@MainActivity)
-                                Toast.makeText(this@MainActivity, "保存成功！桌面组件正在刷新...", Toast.LENGTH_LONG).show()
+                                
+                                isLoading = false
+                                Toast.makeText(this@MainActivity, "保存成功！数据已更新", Toast.LENGTH_SHORT).show()
                             }
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3575F0)), // 小米蓝
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3575F0)),
                         shape = RoundedCornerShape(25.dp)
                     ) {
-                        Text("保存并刷新", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        if (isLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        } else {
+                            Text("保存并立刻刷新", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 底部提示
-            Text(
-                "提示：如果桌面组件未刷新，请手动点击组件右上角。",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
         }
     }
 }
